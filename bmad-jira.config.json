@@ -1,0 +1,24 @@
+{
+  "jira": {
+    "baseUrl": "https://gradientsparrow.atlassian.net/",
+    "email": "sai@gradientsparrow.com",
+    "apiToken": "${JIRA_API_TOKEN}",
+    "projectKey": "XPID"
+  },
+  "bmad": {
+    "sprintStatusFile": "_bmad-output/implementation-artifacts/sprint-status.yaml",
+    "storiesDir": "_bmad-output/implementation-artifacts",
+    "epicsFile": "_bmad-output/planning-artifacts/epics.md"
+  },
+  "statusMap": {
+    "backlog": "Backlog",
+    "ready-for-dev": "To Do",
+    "in-progress": "In Progress",
+    "review": "In Review",
+    "done": "Done"
+  },
+  "issueTypeMap": {
+    "epic": "Epic",
+    "story": "Story"
+  }
+}

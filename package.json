@@ -1,0 +1,30 @@
+{
+  "name": "bmad-jira-sync",
+  "version": "1.0.0",
+  "description": "Sync BMAD stories and epics to Jira automatically",
+  "main": "dist/cli/index.js",
+  "bin": {
+    "bmad-jira": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "sync": "node dist/cli/index.js sync",
+    "sync:dry": "node dist/cli/index.js sync --dry-run"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "chalk": "^4.1.2",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "js-yaml": "^4.1.0",
+    "ora": "^5.4.1",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "@types/prompts": "^2.4.9",
+    "typescript": "^5.4.5"
+  }
+}
