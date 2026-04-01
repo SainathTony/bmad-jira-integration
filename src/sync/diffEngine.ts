@@ -4,7 +4,7 @@ import { StateStore } from './stateStore';
 export function buildSyncPlan(project: BmadProject, store: StateStore): SyncPlan {
   const plan: SyncPlan = { toCreate: [], toTransition: [], upToDate: [] };
 
-  // Process epics first — stories need their epic's Jira key
+  // Process epics first — stories need their epic's provider item ID
   for (const epic of project.epics) {
     const existing = store.get(epic.id);
 
@@ -14,7 +14,7 @@ export function buildSyncPlan(project: BmadProject, store: StateStore): SyncPlan
       plan.toTransition.push({
         type: 'epic',
         item: epic,
-        jiraKey: existing.jiraKey,
+        itemId: existing.itemId,
         fromStatus: existing.lastSyncedStatus,
         toStatus: epic.status,
       });
@@ -33,7 +33,7 @@ export function buildSyncPlan(project: BmadProject, store: StateStore): SyncPlan
       plan.toTransition.push({
         type: 'story',
         item: story,
-        jiraKey: existing.jiraKey,
+        itemId: existing.itemId,
         fromStatus: existing.lastSyncedStatus,
         toStatus: story.status,
       });

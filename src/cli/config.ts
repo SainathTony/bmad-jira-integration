@@ -5,8 +5,14 @@ import { SyncConfig } from '../types';
 
 const CONFIG_FILE = 'bmad-jira.config.json';
 
+function resolveEnvPlaceholder(value: string | undefined): string | undefined {
+  if (!value) return value;
+  if (!value.startsWith('${')) return value;
+  const key = value.slice(2, -1);
+  return process.env[key];
+}
+
 export function loadConfig(workspaceRoot: string): SyncConfig {
-  // Load .env from workspace root if it exists
   dotenv.config({ path: path.join(workspaceRoot, '.env') });
 
   const configPath = path.join(workspaceRoot, CONFIG_FILE);
@@ -17,29 +23,50 @@ export function loadConfig(workspaceRoot: string): SyncConfig {
   }
 
   const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as SyncConfig;
+  const provider = raw.provider ?? 'jira';
 
-  // Resolve env var placeholders like "${JIRA_API_TOKEN}"
-  if (raw.jira.apiToken.startsWith('${')) {
-    const envKey = raw.jira.apiToken.slice(2, -1);
-    const resolved = process.env[envKey];
+  if (provider === 'jira') {
+    const resolved = resolveEnvPlaceholder(raw.jira.apiToken);
     if (!resolved) {
+      const key = raw.jira.apiToken.startsWith('${') ? raw.jira.apiToken.slice(2, -1) : 'JIRA_API_TOKEN';
       throw new Error(
-        `Environment variable ${envKey} is not set. ` +
-          `Set it in your shell or create a .env file in the project root.`
+        `Environment variable ${key} is not set. ` +
+        `Set it in your shell or create a .env file at the project root.`
       );
     }
     raw.jira.apiToken = resolved;
+  }
+
+  if (provider === 'trello' && raw.trello) {
+    const apiKey = resolveEnvPlaceholder(raw.trello.apiKey);
+    const token  = resolveEnvPlaceholder(raw.trello.token);
+    if (!apiKey) {
+      const key = raw.trello.apiKey.startsWith('${') ? raw.trello.apiKey.slice(2, -1) : 'TRELLO_API_KEY';
+      throw new Error(`Environment variable ${key} is not set.`);
+    }
+    if (!token) {
+      const key = raw.trello.token.startsWith('${') ? raw.trello.token.slice(2, -1) : 'TRELLO_TOKEN';
+      throw new Error(`Environment variable ${key} is not set.`);
+    }
+    raw.trello.apiKey = apiKey;
+    raw.trello.token  = token;
   }
 
   return raw;
 }
 
 export function saveConfig(workspaceRoot: string, config: SyncConfig): void {
-  // Save with apiToken as env var placeholder, never plaintext
-  const toSave = {
+  const toSave: SyncConfig = {
     ...config,
     jira: { ...config.jira, apiToken: '${JIRA_API_TOKEN}' },
   };
+  if (toSave.trello) {
+    toSave.trello = {
+      ...toSave.trello,
+      apiKey: '${TRELLO_API_KEY}',
+      token:  '${TRELLO_TOKEN}',
+    };
+  }
   const configPath = path.join(workspaceRoot, CONFIG_FILE);
   fs.writeFileSync(configPath, JSON.stringify(toSave, null, 2) + '\n', 'utf-8');
 }
