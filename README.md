@@ -290,6 +290,14 @@ git commit -m "move story 2-3 to review"
 
 ---
 
+## Publishing as an npm package
+
+1. Bump the package version with `npm version <patch|minor|major>` and push the commit plus tag (`git push --follow-tags`).
+2. Create a GitHub release for the new tag (the `release.published` trigger runs the automated publish workflow).
+3. The workflow runs `npm ci`, `npm run build`, and `npm publish`, using the `NPM_TOKEN` secret (add an npm automation token with `publish` scope under Settings → Secrets).
+
+The `prepare` script already builds `dist` before packing, so the published tarball includes the transpiled CLI entry point, typings, and config templates that consumers rely on.
+
 ## Troubleshooting
 
 ### Jira

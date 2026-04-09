@@ -1,0 +1,10 @@
+src/
+*.ts
+*.tsx
+tsconfig.json
+node_modules/
+.env
+.env.*
+.bmad-jira-state.json
+.gitignore
+package-lock.json

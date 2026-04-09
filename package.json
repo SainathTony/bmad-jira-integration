@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Sync BMAD stories and epics to Jira automatically",
   "main": "dist/cli/index.js",
+  "types": "dist/types.d.ts",
   "bin": {
     "bmad-jira": "dist/cli/index.js"
   },
@@ -10,7 +11,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "sync": "node dist/cli/index.js sync",
-    "sync:dry": "node dist/cli/index.js sync --dry-run"
+    "sync:dry": "node dist/cli/index.js sync --dry-run",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "axios": "^1.7.2",
@@ -26,5 +29,30 @@
     "@types/node": "^20.14.0",
     "@types/prompts": "^2.4.9",
     "typescript": "^5.4.5"
-  }
+  },
+  "files": [
+    "dist",
+    "bmad-jira.config.json",
+    ".env.example",
+    "README.md"
+  ],
+  "keywords": [
+    "bmad",
+    "jira",
+    "trello",
+    "sync",
+    "automation",
+    "project-management"
+  ],
+  "engines": {
+    "node": ">=18"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SainathTony/bmad-jira-integration.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SainathTony/bmad-jira-integration/issues"
+  },
+  "homepage": "https://github.com/SainathTony/bmad-jira-integration#readme"
 }
