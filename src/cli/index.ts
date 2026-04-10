@@ -49,20 +49,56 @@ program
     });
     if (!provider) { console.log(chalk.yellow('Setup cancelled.')); process.exit(0); }
 
-    const bmadAnswers = await prompts([
-      {
-        type: 'text',
-        name: 'sprintStatusFile',
-        message: 'Path to sprint-status.yaml (relative to project root)',
-        initial: existing?.bmad.sprintStatusFile ?? '_bmad-output/implementation-artifacts/sprint-status.yaml',
-      },
-      {
-        type: 'text',
-        name: 'storiesDir',
-        message: 'Path to stories directory (relative to project root)',
-        initial: existing?.bmad.storiesDir ?? '_bmad-output/implementation-artifacts',
-      },
-    ]);
+    // ── Prompt for story paths, re-asking until they exist ──────────────────
+    let bmadAnswers: { sprintStatusFile: string; storiesDir: string } = { sprintStatusFile: '', storiesDir: '' };
+    let pathsValid = false;
+
+    while (!pathsValid) {
+      bmadAnswers = await prompts([
+        {
+          type: 'text',
+          name: 'storiesDir',
+          message: 'Path to stories directory (relative to project root)',
+          initial: existing?.bmad.storiesDir ?? '_bmad-output/implementation-artifacts',
+        },
+        {
+          type: 'text',
+          name: 'sprintStatusFile',
+          message: 'Path to sprint-status.yaml (relative to project root)',
+          initial: existing?.bmad.sprintStatusFile ?? '_bmad-output/implementation-artifacts/sprint-status.yaml',
+        },
+      ]);
+      if (!bmadAnswers.storiesDir) { console.log(chalk.yellow('Setup cancelled.')); process.exit(0); }
+
+      const storiesDirFull     = path.join(WORKSPACE_ROOT, bmadAnswers.storiesDir);
+      const sprintStatusFull   = path.join(WORKSPACE_ROOT, bmadAnswers.sprintStatusFile);
+      const storiesDirExists   = fs.existsSync(storiesDirFull);
+      const sprintStatusExists = fs.existsSync(sprintStatusFull);
+
+      if (!storiesDirExists) {
+        console.log(chalk.red(`  ✗ Stories directory not found: ${bmadAnswers.storiesDir}`));
+      } else {
+        console.log(chalk.green(`  ✓ Stories directory found`));
+      }
+
+      if (!sprintStatusExists) {
+        console.log(chalk.red(`  ✗ sprint-status.yaml not found: ${bmadAnswers.sprintStatusFile}`));
+      } else {
+        console.log(chalk.green(`  ✓ sprint-status.yaml found`));
+      }
+
+      if (!storiesDirExists || !sprintStatusExists) {
+        const { retry } = await prompts({
+          type: 'confirm',
+          name: 'retry',
+          message: 'One or more paths were not found. Enter paths again?',
+          initial: true,
+        });
+        if (!retry) { console.log(chalk.yellow('Setup cancelled.')); process.exit(0); }
+      } else {
+        pathsValid = true;
+      }
+    }
 
     let config: SyncConfig = {
       provider,
@@ -155,6 +191,21 @@ program
     console.log(chalk.green('\n✓ Config saved to bmad-jira.config.json'));
     console.log(chalk.green('✓ Credentials saved to .env'));
     console.log(chalk.dim('\nMake sure .env is in your .gitignore!\n'));
+
+    // ── Offer to install the git commit hook ─────────────────────────────────
+    const gitDir = path.join(WORKSPACE_ROOT, '.git');
+    if (fs.existsSync(gitDir)) {
+      const { autoSync } = await prompts({
+        type: 'confirm',
+        name: 'autoSync',
+        message: 'Install git hook to auto-sync when sprint-status.yaml changes on commit?',
+        initial: true,
+      });
+      if (autoSync) {
+        installGitHook(WORKSPACE_ROOT, config.bmad.sprintStatusFile);
+      }
+    }
+
     console.log('Run ' + chalk.cyan('bmad-jira sync --dry-run') + ' to preview what will be synced.');
   });
 
@@ -469,40 +520,58 @@ async function diagnoseTrello(config: SyncConfig): Promise<void> {
 }
 
 // ─── install-hooks ─────────────────────────────────────────────────────────────
-program
-  .command('install-hooks')
-  .description('Install git post-commit hook to auto-sync on every commit')
-  .action(() => {
-    const gitDir = path.join(WORKSPACE_ROOT, '.git');
-    if (!fs.existsSync(gitDir)) {
-      console.error(chalk.red('Not a git repository. Cannot install hooks.'));
-      process.exit(1);
-    }
+function installGitHook(workspaceRoot: string, sprintStatusFile: string): void {
+  const gitDir = path.join(workspaceRoot, '.git');
+  if (!fs.existsSync(gitDir)) {
+    console.error(chalk.red('Not a git repository. Cannot install hooks.'));
+    process.exit(1);
+  }
 
-    const hookPath = path.join(gitDir, 'hooks', 'post-commit');
-    const hookScript = `#!/bin/bash
-# bmad-jira-sync post-commit hook
-if git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -q "_bmad-output"; then
-  echo "[bmad-jira] BMAD files changed, syncing..."
+  // Normalise to forward-slashes so grep -F works on all platforms
+  const watchedFile = sprintStatusFile.replace(/\\/g, '/');
+
+  const hookScript = `#!/bin/bash
+# bmad-jira-sync post-commit hook — auto-syncs sprint-status.yaml changes to PM tool
+SPRINT_STATUS_FILE="${watchedFile}"
+if git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -qF "$SPRINT_STATUS_FILE"; then
+  echo "[bmad-jira] sprint-status.yaml changed, syncing to PM tool..."
   cd "$(git rev-parse --show-toplevel)"
-  node bmad-jira-sync/dist/cli/index.js sync
+  if [ -f "node_modules/.bin/bmad-jira" ]; then
+    node_modules/.bin/bmad-jira sync
+  elif [ -f "bmad-jira-sync/dist/cli/index.js" ]; then
+    node bmad-jira-sync/dist/cli/index.js sync
+  else
+    npx bmad-jira sync
+  fi
 fi
 `;
 
-    if (fs.existsSync(hookPath)) {
-      const existing = fs.readFileSync(hookPath, 'utf-8');
-      if (existing.includes('bmad-jira')) {
-        console.log(chalk.yellow('Hook already installed.'));
-        return;
-      }
-      fs.appendFileSync(hookPath, '\n' + hookScript);
-    } else {
-      fs.writeFileSync(hookPath, hookScript, { mode: 0o755 });
+  const hookPath = path.join(gitDir, 'hooks', 'post-commit');
+  if (fs.existsSync(hookPath)) {
+    const existing = fs.readFileSync(hookPath, 'utf-8');
+    if (existing.includes('bmad-jira-sync post-commit hook')) {
+      console.log(chalk.yellow('Hook already installed.'));
+      return;
     }
+    fs.appendFileSync(hookPath, '\n' + hookScript);
+  } else {
+    fs.writeFileSync(hookPath, hookScript, { mode: 0o755 });
+  }
 
-    fs.chmodSync(hookPath, '755');
-    console.log(chalk.green('✓ post-commit hook installed at .git/hooks/post-commit'));
-    console.log(chalk.dim('  Sync runs automatically on commits that touch _bmad-output/\n'));
+  fs.chmodSync(hookPath, '755');
+  console.log(chalk.green('✓ post-commit hook installed at .git/hooks/post-commit'));
+  console.log(chalk.dim(`  Sync runs automatically when "${watchedFile}" changes on commit\n`));
+}
+
+program
+  .command('install-hooks')
+  .description('Install git post-commit hook to auto-sync when sprint-status.yaml changes on commit')
+  .action(() => {
+    let config: SyncConfig;
+    try { config = loadConfig(WORKSPACE_ROOT); }
+    catch (err: unknown) { console.error(chalk.red(`\nConfig error: ${String(err)}\n`)); process.exit(1); }
+
+    installGitHook(WORKSPACE_ROOT, config.bmad.sprintStatusFile);
   });
 
 program.parse(process.argv);
