@@ -15,6 +15,7 @@ export interface Story {
   description: string;
   acceptanceCriteria: string[];
   filePath: string;
+  fullContent?: string; // Complete story markdown content for rich description
 }
 
 export interface Epic {

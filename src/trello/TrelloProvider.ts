@@ -102,6 +102,31 @@ function resolveEnv(value: string): string {
 }
 
 function buildCardDescription(story: Story): string {
+  // If full content is available, use it for a rich description
+  if (story.fullContent) {
+    // Extract key sections for a structured but comprehensive description
+    const lines: string[] = [];
+    
+    // Add the story foundation/user story
+    if (story.description) {
+      lines.push('## Story', story.description, '');
+    }
+    
+    // Add acceptance criteria
+    if (story.acceptanceCriteria.length > 0) {
+      lines.push('## Acceptance Criteria');
+      story.acceptanceCriteria.forEach((ac, i) => lines.push(`${i + 1}. ${ac}`));
+      lines.push('');
+    }
+    
+    // Add link to full story document
+    lines.push(`---`);
+    lines.push(`**Full Story:** ${story.filePath}`);
+    
+    return lines.join('\n').trim();
+  }
+  
+  // Fallback to basic description
   const lines: string[] = [];
   if (story.description) lines.push(story.description, '');
   if (story.acceptanceCriteria.length > 0) {

@@ -42,7 +42,19 @@ export function storyToJiraPayload(
       ? `Acceptance Criteria:\n${story.acceptanceCriteria.map((ac, i) => `${i + 1}. ${ac}`).join('\n')}`
       : '';
 
-  const descText = [story.description, acText].filter(Boolean).join('\n\n');
+  // Build rich description with all available content
+  const descParts: string[] = [];
+  if (story.description) {
+    descParts.push('h2. Story', story.description);
+  }
+  if (acText) {
+    descParts.push('', acText);
+  }
+  if (story.fullContent) {
+    descParts.push('', `----`, `Full story document: ${story.filePath}`);
+  }
+  
+  const descText = descParts.join('\n\n') || `BMAD Story: ${story.id}`;
 
   const payload: JiraIssuePayload = {
     fields: {
@@ -50,7 +62,7 @@ export function storyToJiraPayload(
       summary: story.title,
       issuetype: { name: config.issueTypeMap['story'] ?? 'Story' },
       labels: [`bmad-story`, `bmad-${story.epicId}`, `bmad-id-${story.id}`],
-      description: markdownToAdf(descText || `BMAD Story: ${story.id}`),
+      description: markdownToAdf(descText),
     },
   };
 

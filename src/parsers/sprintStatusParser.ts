@@ -66,15 +66,18 @@ export function parseSprintStatus(
     let title = titleFromId(id);
     let description = '';
     let acceptanceCriteria: string[] = [];
+    let fullContent = '';
 
     if (fs.existsSync(filePath)) {
-      const parsed = parseStoryFile(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      fullContent = content;
+      const parsed = parseStoryFile(content);
       title = parsed.title || title;
       description = parsed.description;
       acceptanceCriteria = parsed.acceptanceCriteria;
     }
 
-    return { id, epicId, title, status: storyStatus, description, acceptanceCriteria, filePath };
+    return { id, epicId, title, status: storyStatus, description, acceptanceCriteria, filePath, fullContent };
   });
 
   return {
@@ -83,37 +86,60 @@ export function parseSprintStatus(
   };
 }
 
-function parseStoryFile(filePath: string): {
+function parseStoryFile(content: string): {
   title: string;
   description: string;
   acceptanceCriteria: string[];
 } {
-  const content = fs.readFileSync(filePath, 'utf-8');
   const lines = content.split('\n');
 
   let title = '';
   let description = '';
   const acceptanceCriteria: string[] = [];
 
-  // First H1 heading is the title
+  // First H1 heading is the title (skip frontmatter)
+  const contentWithoutFrontmatter = content.replace(/^---\n[\s\S]*?\n---\n*/, '');
   const titleLine = lines.find((l) => l.startsWith('# '));
   if (titleLine) {
     title = titleLine.replace(/^#\s+/, '').trim();
   }
 
-  // Extract the "Story" section (the "As a ..." user story block)
-  const storySection = extractSection(content, '## Story');
+  // Extract the "Story Foundation" section (supports both "## Story" and "## Story Foundation")
+  const storySection = extractSection(content, '## Story Foundation') || extractSection(content, '## Story');
   if (storySection) {
     description = storySection.trim();
   }
 
-  // Extract Acceptance Criteria as numbered items
-  const acSection = extractSection(content, '## Acceptance Criteria');
+  // Extract Acceptance Criteria - support both BDD style (### AC-1:) and numbered lists
+  const acSection = extractSection(content, '## Acceptance Criteria') || 
+                    extractSection(content, '## Acceptance Criteria (BDD)');
   if (acSection) {
-    const acLines = acSection.split('\n').filter((l) => /^\d+\./.test(l.trim()));
-    acceptanceCriteria.push(
-      ...acLines.map((l) => l.replace(/^\d+\.\s*/, '').trim())
-    );
+    // Try BDD format first: ### AC-1: Title followed by Gherkin
+    const bddMatches = acSection.match(/###\s+AC-\d+:.*/g);
+    if (bddMatches) {
+      // Extract each AC block by matching the AC headers and capturing content after them
+      for (const match of bddMatches) {
+        const acTitle = match.replace('### ', '').trim();
+        const acIndex = acSection.indexOf(match);
+        const nextAcMatch = acSection.slice(acIndex + match.length).match(/###\s+AC-\d+:/);
+        const nextAcIndex = nextAcMatch ? acSection.indexOf(nextAcMatch[0], acIndex + match.length) : -1;
+        const acContent = acSection.slice(
+          acIndex + match.length,
+          nextAcIndex > 0 ? nextAcIndex : undefined
+        );
+        const cleanContent = acContent
+          .replace(/```gherkin\n?/g, '')
+          .replace(/```/g, '')
+          .trim();
+        if (cleanContent) {
+          acceptanceCriteria.push(`${acTitle} ${cleanContent}`.replace(/\n/g, ' '));
+        }
+      }
+    } else {
+      // Fall back to numbered items (1. 2. 3.)
+      const acLines = acSection.split('\n').filter((l) => /^\d+\./.test(l.trim()));
+      acceptanceCriteria.push(...acLines.map((l) => l.replace(/^\d+\.\s*/, '').trim()));
+    }
   }
 
   return { title, description, acceptanceCriteria };
