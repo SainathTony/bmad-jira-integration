@@ -59,6 +59,14 @@ export class TrelloProvider implements PmProvider {
     return this.resolveListName(bmadStatus).toLowerCase() === 'backlog';
   }
 
+  async updateStoryContent(story: Story, itemId: string): Promise<void> {
+    const desc = buildCardDescription(story);
+    await this.client.updateCard(itemId, {
+      name: story.title,
+      desc: desc,
+    });
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   private resolveListName(bmadStatus: string): string {

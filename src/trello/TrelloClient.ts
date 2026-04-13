@@ -83,4 +83,8 @@ export class TrelloClient {
   async moveCard(cardId: string, listId: string): Promise<void> {
     await this.http.put(`/cards/${cardId}`, { idList: listId });
   }
+
+  async updateCard(cardId: string, updates: { name?: string; desc?: string }): Promise<void> {
+    await this.http.put(`/cards/${cardId}`, updates);
+  }
 }

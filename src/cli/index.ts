@@ -322,6 +322,113 @@ program
     }
   });
 
+// ─── sync-content ──────────────────────────────────────────────────────────────
+program
+  .command('sync-content')
+  .description('Sync story content (title, description, acceptance criteria) to existing provider items. Overwrites without checking changes.')
+  .option('--dry-run', 'Preview changes without writing to the provider')
+  .action(async (opts: { dryRun?: boolean }) => {
+    const dryRun = opts.dryRun ?? false;
+
+    let config: SyncConfig;
+    try { config = loadConfig(WORKSPACE_ROOT); }
+    catch (err: unknown) { console.error(chalk.red(`\nConfig error: ${String(err)}\n`)); process.exit(1); }
+
+    const sprintStatusPath = path.join(WORKSPACE_ROOT, config.bmad.sprintStatusFile);
+    const storiesDir       = path.join(WORKSPACE_ROOT, config.bmad.storiesDir);
+
+    const spinner = ora('Parsing BMAD files...').start();
+    let project;
+    try {
+      project = parseSprintStatus(sprintStatusPath, storiesDir);
+      spinner.succeed(`Parsed ${project.epics.length} epics, ${project.stories.length} stories`);
+    } catch (err: unknown) {
+      spinner.fail(`Failed to parse BMAD files: ${String(err)}`);
+      process.exit(1);
+    }
+
+    const store = new StateStore(WORKSPACE_ROOT);
+    const storiesToUpdate: Array<{ story: typeof project.stories[0]; itemId: string }> = [];
+
+    for (const story of project.stories) {
+      const existing = store.get(story.id);
+      if (existing) {
+        storiesToUpdate.push({ story, itemId: existing.itemId });
+      }
+    }
+
+    const providerLabel = (config.provider ?? 'jira').toUpperCase();
+    console.log('');
+    console.log(chalk.bold(`Sync Content → ${providerLabel}:`));
+    console.log(chalk.cyan(`  → Update content: ${storiesToUpdate.length} stories`));
+    const notFound = project.stories.length - storiesToUpdate.length;
+    if (notFound > 0) {
+      console.log(chalk.yellow(`  ○ Not synced yet: ${notFound} stories (run 'bmad-jira sync' first)`));
+    }
+    console.log('');
+
+    if (storiesToUpdate.length === 0) {
+      console.log(chalk.yellow('No synced stories found. Run "bmad-jira sync" first.'));
+      return;
+    }
+
+    if (dryRun) {
+      console.log(chalk.bold(chalk.yellow('DRY RUN — no changes will be made\n')));
+      console.log(chalk.bold('Stories to update:'));
+      for (const { story, itemId } of storiesToUpdate) {
+        console.log(`  ${chalk.cyan('→')} ${itemId} (${story.id}) — "${story.title}"`);
+      }
+      console.log('');
+      return;
+    }
+
+    if (storiesToUpdate.length > 10) {
+      const { confirm } = await prompts({
+        type: 'confirm',
+        name: 'confirm',
+        message: `About to update content for ${storiesToUpdate.length} items in ${providerLabel}. Continue?`,
+        initial: true,
+      });
+      if (!confirm) { console.log(chalk.yellow('Sync cancelled.')); return; }
+    }
+
+    const execSpinner = ora(`Syncing content to ${providerLabel}...`).start();
+    const provider = createProvider(config);
+
+    const updated: Array<{ bmadId: string; itemId: string }> = [];
+    const errors: Array<{ bmadId: string; error: string }> = [];
+
+    for (const { story, itemId } of storiesToUpdate) {
+      try {
+        await provider.updateStoryContent(story, itemId);
+        updated.push({ bmadId: story.id, itemId });
+      } catch (err: unknown) {
+        errors.push({ bmadId: story.id, error: String(err) });
+      }
+    }
+
+    execSpinner.stop();
+
+    if (updated.length > 0) {
+      console.log(chalk.bold(chalk.green('\nUpdated:')));
+      for (const { bmadId, itemId } of updated) {
+        console.log(`  ${chalk.green('✓')} ${itemId}  ←  ${bmadId}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      console.log(chalk.bold(chalk.red('\nErrors:')));
+      for (const { bmadId, error } of errors) {
+        console.log(`  ${chalk.red('✗')} ${bmadId}: ${error}`);
+      }
+    }
+
+    console.log('');
+    console.log(chalk.green(
+      `Done. ${updated.length} updated, ${errors.length} errors.`
+    ));
+  });
+
 // ─── status ────────────────────────────────────────────────────────────────────
 program
   .command('status')

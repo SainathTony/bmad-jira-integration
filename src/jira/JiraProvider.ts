@@ -37,4 +37,14 @@ export class JiraProvider implements PmProvider {
     const name = this.statusDisplayName(bmadStatus).toLowerCase();
     return name === 'to do' || name === 'backlog';
   }
+
+  async updateStoryContent(story: Story, itemId: string): Promise<void> {
+    const payload = storyToJiraPayload(story, undefined, this.config);
+    await this.client.updateIssue(itemId, {
+      fields: {
+        summary: payload.fields.summary,
+        description: payload.fields.description,
+      },
+    });
+  }
 }

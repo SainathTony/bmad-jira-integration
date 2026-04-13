@@ -35,4 +35,10 @@ export interface PmProvider {
    * meaning no transition call is needed immediately after creation.
    */
   isDefaultStatus(bmadStatus: string): boolean;
+
+  /**
+   * Update the content (title, description, acceptance criteria) of an existing story.
+   * Overwrites the provider's content with local BMAD content.
+   */
+  updateStoryContent(story: Story, itemId: string): Promise<void>;
 }

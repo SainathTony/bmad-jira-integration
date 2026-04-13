@@ -121,4 +121,8 @@ export class JiraClient {
     });
     return data.issues;
   }
+
+  async updateIssue(issueKey: string, payload: { fields: Partial<JiraIssuePayload['fields']> }): Promise<void> {
+    await this.http.put(`/issue/${issueKey}`, payload);
+  }
 }

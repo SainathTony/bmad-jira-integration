@@ -261,4 +261,132 @@ Then the system allows the action
       expect(mockMoveCard).not.toHaveBeenCalled();
     });
   });
+
+  describe('updateStoryContent', () => {
+    let mockUpdateCard: jest.Mock;
+
+    beforeEach(() => {
+      mockUpdateCard = jest.fn().mockResolvedValue(undefined);
+      MockedTrelloClient.mockImplementation(() => ({
+        getLists: mockGetLists,
+        getLabels: mockGetLabels,
+        createLabel: mockCreateLabel,
+        createCard: mockCreateCard,
+        moveCard: mockMoveCard,
+        updateCard: mockUpdateCard,
+      } as unknown as TrelloClient));
+    });
+
+    it('should update existing card title and description without creating new card', async () => {
+      const provider = new TrelloProvider(mockConfig);
+
+      const mockStory: Story = {
+        id: '1-1-test-story',
+        epicId: 'epic-1',
+        title: 'Updated Story Title',
+        status: 'in-progress',
+        description: 'As a User, I want updated functionality',
+        acceptanceCriteria: ['Updated AC 1', 'Updated AC 2'],
+        filePath: '_bmad-output/implementation-artifacts/1-1-test-story.md',
+        fullContent: '# Updated Story Title\n\n## Story\n\nAs a User, I want updated functionality',
+      };
+
+      await provider.updateStoryContent(mockStory, 'card-123');
+
+      // Should only update, not create
+      expect(mockUpdateCard).toHaveBeenCalledTimes(1);
+      expect(mockCreateCard).not.toHaveBeenCalled();
+
+      // Verify update was called with correct arguments
+      expect(mockUpdateCard).toHaveBeenCalledWith('card-123', {
+        name: 'Updated Story Title',
+        desc: expect.any(String),
+      });
+
+      const desc = mockUpdateCard.mock.calls[0][1].desc;
+      expect(desc).toContain('## Story');
+      expect(desc).toContain('As a User, I want updated functionality');
+      expect(desc).toContain('## Acceptance Criteria');
+    });
+
+    it('should NOT change card status when updating content', async () => {
+      const provider = new TrelloProvider(mockConfig);
+
+      const mockStory: Story = {
+        id: '1-1-test-story',
+        epicId: 'epic-1',
+        title: 'Updated Story Title',
+        status: 'in-progress',
+        description: 'As a User, I want updated functionality',
+        acceptanceCriteria: ['Updated AC 1'],
+        filePath: '_bmad-output/implementation-artifacts/1-1-test-story.md',
+        fullContent: '# Updated Story Title',
+      };
+
+      await provider.updateStoryContent(mockStory, 'card-123');
+
+      // moveCard should never be called during content update
+      expect(mockMoveCard).not.toHaveBeenCalled();
+    });
+
+    it('should update card without full content when story.fullContent is not available', async () => {
+      const provider = new TrelloProvider(mockConfig);
+
+      const mockStory: Story = {
+        id: '1-1-test-story',
+        epicId: 'epic-1',
+        title: 'Updated Story Title',
+        status: 'backlog',
+        description: 'As a User, I want a feature',
+        acceptanceCriteria: ['Criteria 1'],
+        filePath: '_bmad-output/implementation-artifacts/1-1-test-story.md',
+        // fullContent not provided
+      };
+
+      await provider.updateStoryContent(mockStory, 'card-123');
+
+      expect(mockUpdateCard).toHaveBeenCalledWith('card-123', {
+        name: 'Updated Story Title',
+        desc: expect.stringContaining('As a User, I want a feature'),
+      });
+    });
+
+    it('should NOT modify labels when updating content', async () => {
+      const mockGetListsForLabels = jest.fn().mockResolvedValue([
+        { id: 'list-1', name: 'Backlog' },
+      ]);
+      const mockGetLabelsWithExisting = jest.fn().mockResolvedValue([
+        { id: 'label-existing', name: 'Epic 1' },
+      ]);
+      const mockCreateLabelForLabels = jest.fn();
+
+      MockedTrelloClient.mockImplementation(() => ({
+        getLists: mockGetListsForLabels,
+        getLabels: mockGetLabelsWithExisting,
+        createLabel: mockCreateLabelForLabels,
+        createCard: mockCreateCard,
+        moveCard: mockMoveCard,
+        updateCard: mockUpdateCard,
+      } as unknown as TrelloClient));
+
+      const provider = new TrelloProvider(mockConfig);
+
+      const mockStory: Story = {
+        id: '1-1-test-story',
+        epicId: 'epic-1',
+        title: 'Updated Story Title',
+        status: 'backlog',
+        description: 'As a User, I want updated functionality',
+        acceptanceCriteria: [],
+        filePath: '_bmad-output/implementation-artifacts/1-1-test-story.md',
+        fullContent: '# Updated Story Title',
+      };
+
+      await provider.updateStoryContent(mockStory, 'card-123');
+
+      // Labels should not be touched during content update
+      expect(mockGetLabelsWithExisting).not.toHaveBeenCalled();
+      expect(mockCreateLabelForLabels).not.toHaveBeenCalled();
+    });
+  });
 });
