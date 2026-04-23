@@ -14,6 +14,8 @@ export interface Story {
   status: StoryStatus;
   description: string;
   acceptanceCriteria: string[];
+  businessContext?: string;
+  tasks?: string;
   filePath: string;
   fullContent?: string; // Complete story markdown content for rich description
 }

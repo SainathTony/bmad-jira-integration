@@ -66,6 +66,8 @@ export function parseSprintStatus(
     let title = titleFromId(id);
     let description = '';
     let acceptanceCriteria: string[] = [];
+    let businessContext = '';
+    let tasks = '';
     let fullContent = '';
 
     if (fs.existsSync(filePath)) {
@@ -75,9 +77,11 @@ export function parseSprintStatus(
       title = parsed.title || title;
       description = parsed.description;
       acceptanceCriteria = parsed.acceptanceCriteria;
+      businessContext = parsed.businessContext;
+      tasks = parsed.tasks;
     }
 
-    return { id, epicId, title, status: storyStatus, description, acceptanceCriteria, filePath, fullContent };
+    return { id, epicId, title, status: storyStatus, description, acceptanceCriteria, businessContext, tasks, filePath, fullContent };
   });
 
   return {
@@ -90,12 +94,16 @@ function parseStoryFile(content: string): {
   title: string;
   description: string;
   acceptanceCriteria: string[];
+  businessContext: string;
+  tasks: string;
 } {
   const lines = content.split('\n');
 
   let title = '';
   let description = '';
   const acceptanceCriteria: string[] = [];
+  let businessContext = '';
+  let tasks = '';
 
   // First H1 heading is the title (skip frontmatter)
   const contentWithoutFrontmatter = content.replace(/^---\n[\s\S]*?\n---\n*/, '');
@@ -142,7 +150,19 @@ function parseStoryFile(content: string): {
     }
   }
 
-  return { title, description, acceptanceCriteria };
+  // Extract Business Context section
+  const businessContextSection = extractSection(content, '## Business Context');
+  if (businessContextSection) {
+    businessContext = businessContextSection.trim();
+  }
+
+  // Extract Tasks / Subtasks section
+  const tasksSection = extractSection(content, '## Tasks / Subtasks') || extractSection(content, '## Tasks');
+  if (tasksSection) {
+    tasks = tasksSection.trim();
+  }
+
+  return { title, description, acceptanceCriteria, businessContext, tasks };
 }
 
 function extractSection(content: string, heading: string): string {

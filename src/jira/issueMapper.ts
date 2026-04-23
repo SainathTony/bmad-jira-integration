@@ -47,8 +47,14 @@ export function storyToJiraPayload(
   if (story.description) {
     descParts.push('h2. Story', story.description);
   }
+  if (story.businessContext) {
+    descParts.push('', 'h2. Business Context', story.businessContext);
+  }
   if (acText) {
     descParts.push('', acText);
+  }
+  if (story.tasks) {
+    descParts.push('', 'h2. Tasks / Subtasks', story.tasks);
   }
   if (story.fullContent) {
     descParts.push('', `----`, `Full story document: ${story.filePath}`);

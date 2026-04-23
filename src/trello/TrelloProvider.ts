@@ -120,11 +120,21 @@ function buildCardDescription(story: Story): string {
       lines.push('## Story', story.description, '');
     }
     
+    // Add business context
+    if (story.businessContext) {
+      lines.push('## Business Context', story.businessContext, '');
+    }
+    
     // Add acceptance criteria
     if (story.acceptanceCriteria.length > 0) {
       lines.push('## Acceptance Criteria');
       story.acceptanceCriteria.forEach((ac, i) => lines.push(`${i + 1}. ${ac}`));
       lines.push('');
+    }
+    
+    // Add tasks / subtasks
+    if (story.tasks) {
+      lines.push('## Tasks / Subtasks', story.tasks, '');
     }
     
     // Add link to full story document
@@ -137,9 +147,15 @@ function buildCardDescription(story: Story): string {
   // Fallback to basic description
   const lines: string[] = [];
   if (story.description) lines.push(story.description, '');
+  if (story.businessContext) {
+    lines.push('', '**Business Context**', story.businessContext, '');
+  }
   if (story.acceptanceCriteria.length > 0) {
     lines.push('**Acceptance Criteria**');
     story.acceptanceCriteria.forEach((ac, i) => lines.push(`${i + 1}. ${ac}`));
+  }
+  if (story.tasks) {
+    lines.push('', '**Tasks / Subtasks**', story.tasks);
   }
   return lines.join('\n').trim();
 }
